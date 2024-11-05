@@ -51,7 +51,7 @@ const tempWatchedData = [
 const KEY = "7e9c3f3";
 
 export default function App() {
-  const [query, setQuery] = useState("inception");
+  const [query, setQuery] = useState("");
   const [movies, setMovies] = useState([]);
   const [watched, setWatched] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -74,37 +74,48 @@ export default function App() {
     setWatched((watched) => watched.filter((movie) => movie.imdbID !== id));
   }
 
-  useEffect(() => {
-    async function fetchMovies() {
-      try {
-        setIsLoading(true);
-        setError("");
-        const res = await fetch(
-          `http://www.omdbapi.com/?apikey=${KEY}&s=${query}`
-        );
-        if (!res.ok)
-          throw new Error("Something went wrong while fetching movies");
+  useEffect(
+    function () {
+      const controller = new AbortController();
+      async function fetchMovies() {
+        try {
+          setIsLoading(true);
+          setError("");
+          const res = await fetch(
+            `http://www.omdbapi.com/?apikey=${KEY}&s=${query}`,
+            { signal: controller.signal }
+          );
+          if (!res.ok)
+            throw new Error("Something went wrong while fetching movies");
 
-        const data = await res.json();
-        if (data.Response === "False")
-          throw new Error(`'${query}' named Movie not found`);
+          const data = await res.json();
+          if (data.Response === "False")
+            throw new Error(`'${query}' named Movie not found`);
 
-        setMovies(data.Search);
-        console.log(data.Search);
-      } catch (err) {
-        console.error(err.message);
-        setError(err.message);
-      } finally {
-        setIsLoading(false);
+          setMovies(data.Search);
+        } catch (err) {
+          if (err.name !== "AbortError") {
+            setError(err.message);
+          }
+        } finally {
+          setIsLoading(false);
+        }
       }
-    }
-    if (!query.length) {
-      setMovies([]);
-      setError("");
-      return;
-    }
-    fetchMovies();
-  }, [query]);
+      if (!query.length) {
+        setMovies([]);
+        setError("");
+        return;
+      }
+
+      handleCloseMovie();
+      fetchMovies();
+
+      return function () {
+        controller.abort();
+      };
+    },
+    [query]
+  );
 
   return (
     <>
@@ -301,6 +312,22 @@ function MovieDetails({ selectedId, onAddWatched, onCloseMovie, watchedList }) {
     onCloseMovie();
   }
 
+  useEffect(
+    function () {
+      function callback(e) {
+        if (e.code === "Escape") {
+          onCloseMovie();
+        }
+      }
+
+      document.addEventListener("keydown", callback);
+      return function () {
+        document.removeEventListener("keydown", callback);
+      };
+    },
+    [onCloseMovie]
+  );
+
   useEffect(() => {
     async function getMovieDetails() {
       setIsLoading(true);
@@ -319,6 +346,18 @@ function MovieDetails({ selectedId, onAddWatched, onCloseMovie, watchedList }) {
 
     getMovieDetails();
   }, [selectedId]);
+
+  useEffect(
+    function () {
+      if (!title) return;
+      document.title = `Movie | ${title}`;
+
+      return function () {
+        document.title = "usePopcorn";
+      };
+    },
+    [title]
+  );
 
   return (
     <div className="details">
