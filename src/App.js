@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import StarRating from "./StarRating";
 
 const KEY = "7e9c3f3";
@@ -6,8 +6,10 @@ const KEY = "7e9c3f3";
 export default function App() {
   const [query, setQuery] = useState("");
   const [movies, setMovies] = useState([]);
-  const [watched, setWatched] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [watched, setWatched] = useState(() =>
+    JSON.parse(localStorage.getItem("watched"))
+  );
   const [error, setError] = useState("");
   const [selectedId, setSelectedId] = useState(null);
 
@@ -26,6 +28,13 @@ export default function App() {
   function handleDeleteWatched(id) {
     setWatched((watched) => watched.filter((movie) => movie.imdbID !== id));
   }
+
+  useEffect(
+    function () {
+      localStorage.setItem("watched", JSON.stringify(watched));
+    },
+    [watched]
+  );
 
   useEffect(
     function () {
@@ -134,12 +143,29 @@ function NavBar({ children }) {
 }
 
 function Search({ query, setQuery }) {
+  const searchInput = useRef(null);
+  useEffect(() => {
+    function callback(e) {
+      if (document.activeElement === searchInput.current) return;
+      if (e.code === "Enter") {
+        searchInput.current.focus();
+        setQuery("");
+      }
+    }
+
+    document.addEventListener("keydown", callback);
+    return function () {
+      document.removeEventListener("keydown", callback);
+    };
+  }, [setQuery]);
+
   return (
     <input
       className="search"
       type="text"
       placeholder="Search movies..."
       value={query}
+      ref={searchInput}
       onChange={(e) => setQuery(e.target.value)}
     />
   );
